@@ -1,0 +1,9 @@
+torch>=2.0.0
+torch_geometric
+torch_scatter
+torch_sparse
+scikit-learn
+pandas
+numpy
+matplotlib
+networkx
