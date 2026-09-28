@@ -1,44 +1,51 @@
-# Cardiovascular Heart Attack Prediction using Graph Neural Networks
+Patient Similarity Graph + GCN for Heart Disease Prediction
 
-A graph-based approach to cardiovascular risk prediction — patients are modeled as nodes in a similarity graph rather than independent rows, allowing a Graph Convolutional Network (GCN) to learn from neighborhood-level relational patterns.
+An independent academic project exploring whether modelling patients as nodes in a similarity graph, instead of independent rows, helps heart disease classification. Not peer-reviewed or published. This is a learning project, not a clinical tool.
 
-## Problem
+Idea
 
-Most heart-attack risk prediction models (SVM, Random Forest, Logistic Regression, etc.) treat each patient as an independent sample. This ignores the fact that clinically similar patients often share latent risk patterns that flat, row-wise models can't capture.
+Standard tabular models treat each patient record as an independent feature vector. Here, each patient becomes a node connected to their most similar patients, and a Graph Convolutional Network (GCN) propagates information across those connections.
 
-## Approach
+Dataset
+Cleaned, merged heart disease dataset (cleaned_merged_heart_dataset.csv)
+1,888 patients, 14 features, binary target (heart disease: yes/no)
 
-1. **Preprocessing** — cleaned clinical data (invalid entries removed, numeric type conversion, Min-Max normalization)
-2. **Patient Similarity Graph** — built using K-Nearest Neighbors (K=10, Euclidean distance) on normalized clinical features
-3. **GCN Model** — 2 Graph Convolutional layers (32 → 16 dims) + dropout (0.4) + fully connected output layer
-4. **Training** — Adam optimizer (lr=0.005), cross-entropy loss, 200 epochs, node-level train/test masking (80/20)
+Method
+Preprocessing: features scaled to [0, 1] with MinMaxScaler.
+Graph construction: K-nearest neighbours (k = 10, Euclidean distance) on the scaled features. Edges are made undirected and de-duplicated.
+Model: two GCNConv layers (32 then 16 hidden units, ReLU, dropout 0.4) followed by a linear classification layer.
+Training: Adam (lr = 0.005), cross-entropy loss, 200 epochs.
+Evaluation: stratified 80/20 train/test split (random seed 13).
+Uncertainty: bootstrap resampling of the test set (see below).
+Results (held-out test set)
+Metric	Point estimate	95% bootstrap CI
+Accuracy	0.8730	0.8412 to 0.9048
+Precision	0.8776	0.8316 to 0.9242
+Recall	0.8776	0.8298 to 0.9235
+F1 score	0.8776	0.8430 to 0.9109
+ROC-AUC	0.9366	0.9131 to 0.9584
+Bootstrap confidence intervals
 
-## Dataset
+A single train/test split gives one number per metric. To show how much these numbers could vary, I estimated 95% confidence intervals with the percentile bootstrap:
 
-[Heart Disease Prediction Dataset (Kaggle)](https://www.kaggle.com/datasets/mfarhaannazirkhan/heart-dataset) — 1,888 cleaned patient records, 14 clinical features (age, sex, chest pain type, resting BP, cholesterol, fasting blood sugar, ECG results, max heart rate, exercise-induced angina, ST depression, slope, vessel count, thalassemia, target).
+Take the trained model's predictions on the test set (y_true, y_pred, y_prob).
+Resample the test set with replacement, keeping its original size.
+Recompute each metric on the resample.
+Repeat 1,000 times (resamples containing only one class are skipped).
+Report the 2.5th and 97.5th percentiles as the 95% interval.
 
-## Results
+The model is trained once; only the test set is resampled. The intervals therefore reflect variation from test-set sampling only. They do not capture variation from different train/test splits, random seeds or hyperparameters.
 
-| Metric | Score |
-|---|---|
-| Accuracy | 87.30% |
-| Precision | 87.76% |
-| Recall | 87.76% |
-| F1 Score | 87.76% |
-| ROC-AUC | 0.937 |
+Limitations
+Transductive setup: the graph is built over all patients (train and test), so test-node features take part in message passing during training. Labels of test nodes are not used, but this differs from a strictly inductive evaluation.
+Single split and seed: results come from one stratified split. Repeating over several seeds or cross-validation would give a fuller picture.
+No baseline yet: the GCN has not been compared against non-graph baselines (e.g. Logistic Regression, Random Forest) on the same split, so this project does not show that the graph structure improves performance.
+Small dataset, one source: no external validation.
+Reproducing
+bash
+pip install torch torch_geometric scikit-learn pandas numpy matplotlib networkx
+Put cleaned_merged_heart_dataset.csv in the working directory (or update the path in the notebook).
+Run [notebook_name].ipynb from top to bottom. The random seed is fixed to 13.
+Tech stack
 
-> **Note:** The original Colab notebook for this project was lost (deleted from Drive before backup). The notebook in this repo is a faithful reconstruction from the project's documented methodology (same architecture, hyperparameters, and dataset). Results are close to but not identical to the originally reported numbers — this is expected, since model weight initialization and the train/test split are randomized, and a small dataset (1,888 patients) naturally produces some run-to-run variance. Re-running this notebook with different seeds typically yields 83-87% accuracy and 0.88-0.94 AUC.
-
-Full visualizations (KNN similarity graph, training loss curve, confusion matrix, ROC curve) are in the notebook.
-
-## How to Run
-
-```bash
-pip install -r requirements.txt
-```
-
-Open `gcn_heart_attack_prediction.ipynb` in Jupyter or Colab and run all cells. The dataset (`cleaned_merged_heart_dataset.csv`) is included in this repo.
-
-## Notes
-
-This is an independent academic / semester research project, not peer-reviewed or published. Built to explore graph-based learning approaches for structured clinical data beyond standard classification pipelines.
+Python, PyTorch, PyTorch Geometric, scikit-learn, pandas, NumPy, Matplotlib, NetworkX
